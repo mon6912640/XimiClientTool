@@ -1,8 +1,13 @@
+import argparse
+import json
 import re
+import sys
 from pathlib import Path
+from typing import List
 
 import cchardet as chardet
-from typing import List
+
+key_map = {}
 
 
 class VoFind:
@@ -12,11 +17,31 @@ class VoFind:
     find_str = ''
     # 0 Lan.str  1 Lan.rep
     type_str = ''
+    is_special = False
+
+    out_str = ''
+
+    def get_key(self):
+        key = ''
+        strip_str = self.find_str.lstrip().rstrip()  # 去除左右两边的空白字符
+        if self.out_str:  # 先处理替换修改过的，这里已经变成rep的形式
+            obj = re.search(r'[\'\"`](.+)[\'\"`],', self.out_str)
+            key = obj.group(1)
+        elif self.type_str == 'rep':
+            obj = re.search(r'[\'\"`](.+)[\'\"`],', strip_str)
+            key = obj.group(1)
+            pass
+        elif self.type_str == 'str':
+            key = strip_str
+        # print('---', strip_str, key)
+        key_map[key] = ''
 
 
 class VoTs:
-    key = ''
-    file_pat: Path = None
+    url = ''
+    file_path: Path = None
+    code_str = ''
+    has_special = False
     list_find: List[VoFind] = None
 
     def __init__(self):
@@ -36,14 +61,20 @@ def run(p_work):
     ts_count = len(list_file)
     print('共有{0}个ts文件'.format(ts_count))
     encoding_set = set()
-    vo_list = []
+    modify_ts_list = []
     for v in list_file:
+        if v.name == 'Lan.ts':
+            continue
         cur_encoding = get_encoding(str(v))
         file_str = v.read_text(encoding=cur_encoding)
         result = find_lan(file_str, 0)
         end_index = result[0]
         if end_index < 0:
             continue
+        vots = VoTs()
+        vots.url = str(v)
+        vots.file_path = v
+        vots.code_str = file_str
         len_str = len(file_str)
         pos = 0
         # print(v)
@@ -63,18 +94,56 @@ def run(p_work):
                     vo.type_str = result[1]
                     vo.start_index = end_index
                     vo.end_index = i
-                    vo_list.append(vo)
+                    vots.list_find.append(vo)
                     pos = i
-                    if vo.find_str[0] == '`':
-                        print(v, '\n', vo.find_str)
+
+                    # 把${xxx}替换成rep那样字符串+数组的形式
+                    if '${' in vo.find_str:
+                        vo.is_special = True
+                        vots.has_special = True
+                        params = []
+
+                        def rpl_func(ma):
+                            s2 = ma.group(2)
+                            params.append(s2)
+                            return '{' + str(len(params) - 1) + '}'
+
+                        strip_str = vo.find_str.lstrip().rstrip()  # 去除左右两边的空字符
+                        out_str = re.sub(r'(\$){([^}]+)}', rpl_func, strip_str, flags=re.M)
+                        out_str = out_str + ', [{0}]'.format(', '.join(params))
+                        out_str = out_str.replace('`', '"')
+                        # print(v)
+                        # print(vo.find_str)
+                        # print(params)
+                        # print(out_str)
+                        vo.out_str = out_str
+                    vo.get_key()
                     break
             result = find_lan(file_str, pos)
             end_index = result[0]
+        if vots.has_special:
+            modify_ts_list.append(vots)
         encoding_set.add(cur_encoding)
-    print(encoding_set)
+    # print(encoding_set)
+    for vts in modify_ts_list:
+        for vfind in vts.list_find:
+            if vfind.is_special:
+                # 把 str(`xxxx${xxxx}`替换成rep("xxxx{0}", [xxxx]
+                old_str = vfind.type_str + '(' + vfind.find_str
+                new_str = 'rep(' + vfind.out_str
+                vts.code_str = vts.code_str.replace(old_str, new_str)
+        vts.file_path.write_text(vts.code_str, encoding='utf-8')
+    json_str = json.dumps(key_map, indent=4, ensure_ascii=False)
+    # print(json_str)
+    path_json = Path(p_work, 'resource', 'lan', 'lan_cn.json')
+    # print(path_json)
+    path_json.parent.mkdir(parents=True, exist_ok=True)
+    path_json.write_text(json_str, encoding='utf-8')
+    print('...成功生成语言配置 {0}'.format(path_json))
 
 
 def find_lan(p_str, p_pos):
+    # 查找出Lan.str( 或是 Lan.rep(
     pattern = re.compile(r'\WLan\.(str|rep)\(')
     end_index = -1
     type_str = ''
@@ -87,5 +156,15 @@ def find_lan(p_str, p_pos):
 
 
 if __name__ == '__main__':
-    work_path = 'D:/work_ximi/client/trunk/clientGame'
+    parser = argparse.ArgumentParser(description='帮助信息')
+    parser.add_argument('--work', type=str, default='', help='代码工程目录')
+
+    args = parser.parse_args()
+
+    if not args.work:
+        print('[ERROR]请指定项目工程根目录')
+        sys.exit()
+
+    work_path = args.work
+    # work_path = 'D:/work_ximi/client/trunk/clientGame'
     run(work_path)
