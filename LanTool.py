@@ -32,7 +32,8 @@ class VoFind:
             key = obj.group(1)
             pass
         elif self.type_str == 'str':
-            key = strip_str
+            obj = re.search(r'[\'\"`](.+)[\'\"`]', strip_str)
+            key = obj.group(1)
         # print('---', strip_str, key)
         key_map[key] = ''
 
