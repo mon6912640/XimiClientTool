@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import List
 
 import cchardet as chardet
+from openpyxl import Workbook
 
 key_map = {}
 
@@ -162,7 +163,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    debug = False
+    debug = True
     if debug:
         work_path = 'D:/work_ximi/client/trunk/clientGame'
     else:
@@ -172,3 +173,21 @@ if __name__ == '__main__':
         work_path = args.work
 
     run(work_path)
+
+    wb = Workbook()
+    sheet = wb.active
+    sheet['A1'] = 'key'
+    sheet['B1'] = 'value'
+    # 设置单元格宽度
+    sheet.column_dimensions['A'].width = 50
+    sheet.column_dimensions['B'].width = 50
+
+    row = 1
+    for k in key_map:
+        row += 1
+        sheet['A' + str(row)] = k
+        sheet['B' + str(row)] = key_map[k]
+
+    path_excel = Path('./excel/test.xlsx')
+    path_excel.parent.mkdir(parents=True, exist_ok=True)
+    wb.save(path_excel)
