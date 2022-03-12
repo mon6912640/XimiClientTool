@@ -26,16 +26,16 @@ class VoFind:
         strip_str = self.find_str.lstrip().rstrip()  # 去除左右两边的空白字符
         if self.out_str:  # 先处理替换修改过的，这里已经变成rep的形式
             obj = re.search(r'[\'\"`](.+)[\'\"`],', self.out_str)
-            key = obj.group(1)
         elif self.type_str == 'rep':
             obj = re.search(r'[\'\"`](.+)[\'\"`],', strip_str)
-            key = obj.group(1)
-            pass
         elif self.type_str == 'str':
             obj = re.search(r'[\'\"`](.+)[\'\"`]', strip_str)
+        else:
+            obj = None
+        if obj:
             key = obj.group(1)
+            key_map[key] = ''
         # print('---', strip_str, key)
-        key_map[key] = ''
 
 
 class VoTs:
@@ -162,10 +162,13 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    if not args.work:
-        print('[ERROR]请指定项目工程根目录')
-        sys.exit()
+    debug = False
+    if debug:
+        work_path = 'D:/work_ximi/client/trunk/clientGame'
+    else:
+        if not args.work:
+            print('[ERROR]请指定项目工程根目录')
+            sys.exit()
+        work_path = args.work
 
-    work_path = args.work
-    # work_path = 'D:/work_ximi/client/trunk/clientGame'
     run(work_path)
