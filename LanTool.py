@@ -26,16 +26,20 @@ class VoFind:
         strip_str = self.find_str.lstrip().rstrip()  # 去除左右两边的空白字符
         if self.out_str:  # 先处理替换修改过的，这里已经变成rep的形式
             obj = re.search(r'[\'\"`](.+)[\'\"`],', self.out_str)
-            key = obj.group(1)
         elif self.type_str == 'rep':
             obj = re.search(r'[\'\"`](.+)[\'\"`],', strip_str)
-            key = obj.group(1)
-            pass
         elif self.type_str == 'str':
             obj = re.search(r'[\'\"`](.+)[\'\"`]', strip_str)
+        else:
+            obj = None
+        if obj:
             key = obj.group(1)
+            if '\\n' in key:
+                key = key.replace('\\n', '\n')
+            if '\\t' in key:
+                key = key.replace('\\t', '\t')
+            key_map[key] = ''
         # print('---', strip_str, key)
-        key_map[key] = ''
 
 
 class VoTs:
@@ -56,9 +60,16 @@ def get_encoding(p_file):
         return result
 
 
-def run(p_work):
+def run(p_work, p_others=None):
+    list_file = []
+    if p_others:
+        for v in p_others:
+            psrc = Path(v, 'src')
+            if psrc.exists():
+                list_file.extend(psrc.rglob('*.ts'))
     path_src = Path(p_work, 'src')
-    list_file = sorted(path_src.rglob('*.ts'))
+    list_file.extend(path_src.rglob('*.ts'))
+    list_file.sort()
     ts_count = len(list_file)
     print('共有{0}个ts文件'.format(ts_count))
     encoding_set = set()
@@ -159,13 +170,25 @@ def find_lan(p_str, p_pos):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='帮助信息')
     parser.add_argument('--work', type=str, default='', help='代码工程目录')
+    parser.add_argument('--others', type=str, default='', help='其他工程目录（用,分隔）')
+    parser.add_argument('--debug', type=int, default=1, help='其他工程目录（用,分隔）')
 
     args = parser.parse_args()
 
-    if not args.work:
-        print('[ERROR]请指定项目工程根目录')
-        sys.exit()
+    debug = args.debug
+    if debug:
+        work_path = 'D:/work_ximi/client/trunk/clientGame'
+        others = 'D:/work_ximi/client/trunk/clientLibs/ximilib,D:/work_ximi/client/trunk/clientLibs/fight'
+        other_paths = others.split(',')
+    else:
+        if not args.work:
+            print('[ERROR]请指定项目工程根目录')
+            sys.exit()
+        work_path = args.work
+        others = args.others
+        if others:
+            other_paths = others.split(',')
+        else:
+            other_paths = None
 
-    work_path = args.work
-    # work_path = 'D:/work_ximi/client/trunk/clientGame'
-    run(work_path)
+    run(work_path, other_paths)
